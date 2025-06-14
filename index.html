@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Graph Simulator Landing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #0f172a;
+    }
+    .typing {
+      border-right: 2px solid #ffcc66;
+      white-space: nowrap;
+      overflow: hidden;
+      animation: typing 5s steps(40, end), blink .75s step-end infinite;
+      color: #ffd580;
+    }
+
+    @keyframes typing {
+      from { width: 0 }
+      to { width: 100% }
+    }
+
+    @keyframes blink {
+      from, to { border-color: transparent }
+      50% { border-color: #ffcc66 }
+    }
+
+    .icon-container {
+      cursor: pointer;
+      transition: transform 0.5s ease, filter 0.5s ease;
+      filter: drop-shadow(0 0 6px rgba(255, 200, 100, 0.3));
+      opacity: 0.8;
+      max-width: 70px;
+      max-height: 70px;
+    }
+    .icon-container.active {
+      animation: glowPulse 2s infinite;
+      transform: scale(1.25);
+      filter: drop-shadow(0 0 14px rgba(255, 200, 100, 0.7));
+      opacity: 1;
+      z-index: 10;
+    }
+
+    @keyframes glowPulse {
+      0%, 100% {
+        filter: drop-shadow(0 0 6px rgba(255, 200, 100, 0.4));
+      }
+      50% {
+        filter: drop-shadow(0 0 14px rgba(255, 200, 100, 0.7));
+      }
+    }
+
+    .floaty {
+      animation: floaty 4s ease-in-out infinite;
+    }
+
+    @keyframes floaty {
+      0%, 100% {
+        transform: translateY(0px);
+      }
+      50% {
+        transform: translateY(-8px);
+      }
+    }
+  </style>
+</head>
+<body class="text-white flex items-center justify-center min-h-screen p-8">
+  <div class="max-w-4xl text-center space-y-10">
+    <h1 class="text-4xl font-bold text-yellow-400">Welcome to Graph Visualizer</h1>
+    <p class="text-lg text-gray-300">
+      Graphs are one of the most powerful tools in computer science and real-world modeling. From social networks and road maps to recommendation systems and web crawlers, graphs give structure to chaos. But here's the catch — imagining and debugging graphs in your head can be painfully confusing, especially with all those nodes and edges tangled up like spaghetti. That’s why visualization matters. Here, you can watch algorithms unfold step-by-step, making sense of the madness.
+    </p>
+
+    <!-- Funny quote with typing effect -->
+    <div class="text-xl text-yellow-300 h-20">
+      <span id="quote" class="typing block"></span>
+      <div class="mt-2 text-right text-sm text-gray-400">— by Harsh</div>
+    </div>
+
+    <!-- Animated icons for simulations -->
+    <div class="flex justify-center gap-14 mt-10">
+      <a href="dj.html" class="icon-wrapper">
+        <img src="https://static-00.iconduck.com/assets.00/dijkstras-algorithm-icon-2048x2048-cqp7pb2f.png" alt="Dijkstra" class="icon-container floaty" />
+        <p class="mt-2 text-sm text-gray-400">Dijkstra</p>
+      </a>
+      <a href="bfs.html" class="icon-wrapper">
+        <img src="https://image.shutterstock.com/image-vector/breadth-first-search-bfs-glyph-600nw-2430076355.jpg" alt="BFS" class="icon-container floaty" style="animation-delay: 0.2s" />
+        <p class="mt-2 text-sm text-gray-400">BFS</p>
+      </a>
+      <a href="dfs.html" class="icon-wrapper">
+        <img src="https://static.vecteezy.com/system/resources/previews/039/201/977/non_2x/depth-first-search-dfs-line-icon-illustration-vector.jpg" alt="DFS" class="icon-container floaty" style="animation-delay: 0.4s" />
+        <p class="mt-2 text-sm text-gray-400">DFS</p>
+      </a>
+      <a href="mini.html" class="icon-wrapper">
+        <img src="https://sudeepraja.github.io/images/graph.png" alt="MST" class="icon-container floaty" style="animation-delay: 0.6s" />
+        <p class="mt-2 text-sm text-gray-400">MST</p>
+      </a>
+    </div>
+  </div>
+
+  <script>
+    const quotes = [
+      "Graphs: Where every problem is a node waiting to be connected to more problems.",
+      "DFS is like going down a rabbit hole with no idea when you'll return.",
+      "Graphs are like social networks — full of cycles, cliques, and confusion.",
+      "BFS: Because who doesn’t love level-by-level disappointment?",
+      "Shortest path? Try debugging Dijkstra at 2AM.",
+      "Graphs: The only place where getting stuck in a loop is... expected.",
+      "MST: Because paying full price for edges is for losers.",
+      "Graph theory: Making friendship problems harder since forever.",
+      "Graphs don’t judge you — they just disconnect you.",
+      "Topological sort: When life demands you do A before B, and C before breakfast.",
+      "If you’re feeling lost, just pretend you’re a DFS — you’ll get somewhere eventually.",
+      "BFS is like adulting: do everything layer by layer until you’re exhausted.",
+      "A graph a day keeps the happiness away (unless you’re a CS student).",
+      "Weighted edges, unweighted hopes.",
+      "Graphs: Proof that chaos can still be connected.",
+      "Who needs friends when you have connected components?",
+      "Dijkstra walks into a bar. Finds shortest path to the counter.",
+      "Graphs: When even your problems have connections.",
+      "DFS: Because sometimes you just want to go deep and regret it later.",
+      "Minimum Spanning Tree — like minimal effort, but for edges."
+    ];
+
+    let quoteIndex = 0;
+    const quoteElem = document.getElementById("quote");
+
+    function showNextQuote() {
+      quoteElem.classList.remove("typing");
+      void quoteElem.offsetWidth; // trigger reflow
+      quoteElem.textContent = `“${quotes[quoteIndex]}”`;
+      quoteElem.classList.add("typing");
+
+      quoteIndex = (quoteIndex + 1) % quotes.length;
+    }
+
+    showNextQuote();
+    setInterval(showNextQuote, 7000);
+  </script>
+</body>
+</html>

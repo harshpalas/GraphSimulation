@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Graph DFS Visualizer - Multiple Graphs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+  <div class="p-6 bg-gray-800 rounded-xl shadow-xl w-[1400px] max-w-full">
+    <div class="flex gap-6 flex-wrap">
+      <!-- Sidebar -->
+      <div class="w-64 flex flex-col gap-4">
+        <h2 class="text-2xl font-bold mb-2">DFS Visualizer (Multiple Graphs)</h2>
+        <label>
+          Start Node:
+          <select id="start" class="w-full text-black rounded p-2 mt-1"></select>
+        </label>
+        <button id="run" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">Run DFS</button>
+        <button id="reset" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded">Reset</button>
+        <button id="changeGraph" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded">Change Graph</button>
+        <p id="orderDisplay" class="text-sm text-gray-300 mt-4">DFS Order: </p>
+        <p id="graphName" class="text-gray-400 mt-2"></p>
+      </div>
+
+      <!-- Graph Area -->
+      <div class="flex-1 overflow-auto max-w-[1100px]">
+        <svg id="graph" width="1100" height="700" class="rounded bg-gray-700 shadow"></svg>
+      </div>
+    </div>
+  </div>
+
+<script>
+// Graphs definitions: nodes, edges, positions
+const graphs = [
+  {
+    name: "Binary Tree (31 nodes)",
+    totalNodes: 31,
+    positions: (() => {
+      const positions = [];
+      const levels = 5;
+      const width = 1100;
+      const verticalSpacing = 110;
+      for (let level = 0; level < levels; level++) {
+        const nodesInLevel = Math.pow(2, level);
+        const horizontalSpacing = width / (nodesInLevel + 1);
+        for (let i = 0; i < nodesInLevel; i++) {
+          const x = horizontalSpacing * (i + 1);
+          const y = verticalSpacing * level + 50;
+          positions.push({ x, y });
+        }
+      }
+      return positions;
+    })(),
+    edges: (() => {
+      const edges = [];
+      const totalNodes = 31;
+      for (let i = 0; i < totalNodes; i++) {
+        const left = 2 * i + 1;
+        const right = 2 * i + 2;
+        if (left < totalNodes) edges.push([i, left]);
+        if (right < totalNodes) edges.push([i, right]);
+      }
+      return edges;
+    })()
+  },
+  {
+    name: "Grid Graph (5x5 = 25 nodes)",
+    totalNodes: 25,
+    positions: (() => {
+      const positions = [];
+      const rows = 5;
+      const cols = 5;
+      const spacingX = 180;
+      const spacingY = 120;
+      const startX = 100;
+      const startY = 100;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          positions.push({ x: startX + c * spacingX, y: startY + r * spacingY });
+        }
+      }
+      return positions;
+    })(),
+    edges: (() => {
+      const edges = [];
+      const rows = 5;
+      const cols = 5;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const idx = r * cols + c;
+          // right neighbor
+          if (c + 1 < cols) edges.push([idx, idx + 1]);
+          // down neighbor
+          if (r + 1 < rows) edges.push([idx, idx + cols]);
+        }
+      }
+      return edges;
+    })()
+  }
+];
+
+let currentGraphIndex = 0;
+let graph = graphs[currentGraphIndex];
+let adj = [];
+let animOrder = [];
+let visitedEdges = new Set();
+
+const radius = 18;
+
+function buildAdjacency() {
+  adj = Array.from({ length: graph.totalNodes }, () => []);
+  graph.edges.forEach(([u, v]) => {
+    adj[u].push(v);
+    adj[v].push(u);
+  });
+}
+
+function drawGraph() {
+  const svg = document.getElementById("graph");
+  svg.innerHTML = "";
+
+  // Draw edges
+  for (let [u, v] of graph.edges) {
+    const p1 = graph.positions[u];
+    const p2 = graph.positions[v];
+    const edgeId1 = `${u}-${v}`;
+    const edgeId2 = `${v}-${u}`;
+    const isVisitedEdge = visitedEdges.has(edgeId1) || visitedEdges.has(edgeId2);
+
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", p1.x);
+    line.setAttribute("y1", p1.y);
+    line.setAttribute("x2", p2.x);
+    line.setAttribute("y2", p2.y);
+    line.setAttribute("stroke", isVisitedEdge ? "#3b82f6" : "#ccc");
+    line.setAttribute("stroke-width", isVisitedEdge ? "5" : "2");
+    svg.appendChild(line);
+  }
+
+  // Draw nodes
+  for (let i = 0; i < graph.totalNodes; i++) {
+    const { x, y } = graph.positions[i];
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", x);
+    circle.setAttribute("cy", y);
+    circle.setAttribute("r", radius);
+    circle.setAttribute("fill", animOrder.includes(i) ? "#3b82f6" : "#e2e8f0");
+    circle.setAttribute("stroke", "#1e293b");
+    circle.setAttribute("stroke-width", "2");
+    svg.appendChild(circle);
+
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", x);
+    text.setAttribute("y", y + 6);
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("font-size", "16");
+    text.setAttribute("font-weight", "bold");
+    text.setAttribute("fill", animOrder.includes(i) ? "#fff" : "#000");
+    text.textContent = i;
+    svg.appendChild(text);
+  }
+}
+
+function fillSelects() {
+  const startSel = document.getElementById("start");
+  startSel.innerHTML = "";
+  for (let i = 0; i < graph.totalNodes; i++) {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = i;
+    startSel.appendChild(opt);
+  }
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function runDFS(start) {
+  const visited = Array(graph.totalNodes).fill(false);
+  animOrder = [];
+  visitedEdges.clear();
+
+  async function dfs(u) {
+    visited[u] = true;
+    animOrder.push(u);
+    drawGraph();
+    updateOrderDisplay();
+    await sleep(600);
+
+    for (const v of adj[u]) {
+      if (!visited[v]) {
+        visitedEdges.add(`${u}-${v}`);
+        await dfs(v);
+      }
+    }
+  }
+
+  await dfs(start);
+}
+
+function updateOrderDisplay() {
+  document.getElementById("orderDisplay").textContent = `DFS Order: ${animOrder.join(" → ")}`;
+  document.getElementById("graphName").textContent = `Current Graph: ${graph.name}`;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  buildAdjacency();
+  fillSelects();
+  drawGraph();
+  updateOrderDisplay();
+
+  document.getElementById("run").onclick = () => {
+    animOrder = [];
+    visitedEdges.clear();
+    const start = +document.getElementById("start").value;
+    runDFS(start);
+  };
+
+  document.getElementById("reset").onclick = () => {
+    animOrder = [];
+    visitedEdges.clear();
+    drawGraph();
+    updateOrderDisplay();
+  };
+
+  document.getElementById("changeGraph").onclick = () => {
+    currentGraphIndex = (currentGraphIndex + 1) % graphs.length;
+    graph = graphs[currentGraphIndex];
+    animOrder = [];
+    visitedEdges.clear();
+    buildAdjacency();
+    fillSelects();
+    drawGraph();
+    updateOrderDisplay();
+  };
+});
+</script>
+</body>
+</html>
