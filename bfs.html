@@ -3,8 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Graph BFS Visualizer - Multiple Graphs</title>
+  <title>BFS Visualizer with Play/Pause & Accumulating Explanation</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    #explanationContainer {
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 0.875rem;
+      max-height: 220px;
+      overflow-y: auto;
+      background: #111827;
+      padding: 0.75rem;
+      border-radius: 0.375rem;
+      color: #d1d5db;
+    }
+  </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
   <div class="p-6 bg-gray-800 rounded-xl shadow-xl w-[1400px] max-w-full">
@@ -16,11 +33,19 @@
           Start Node:
           <select id="start" class="w-full text-black rounded p-2 mt-1"></select>
         </label>
-        <button id="run" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">Run BFS</button>
-        <button id="reset" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded">Reset</button>
-        <button id="changeGraph" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded">Change Graph</button>
+        <div class="flex gap-2">
+          <button id="playPause" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded flex-1">Play</button>
+          <button id="reset" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded flex-1">Reset</button>
+        </div>
+        <button id="changeGraph" class="bg-green-700 hover:bg-green-800 text-white py-2 px-4 rounded">Change Graph</button>
+
         <p id="orderDisplay" class="text-sm text-gray-300 mt-4">BFS Order: </p>
         <p id="graphName" class="text-gray-400 mt-2"></p>
+
+        <div class="mt-4 flex flex-col gap-2">
+          <h3 class="font-semibold">Explanation Steps:</h3>
+          <div id="explanationContainer"></div>
+        </div>
       </div>
 
       <!-- Graph Area -->
@@ -31,7 +56,6 @@
   </div>
 
 <script>
-// Graphs definitions: nodes, edges, positions
 const graphs = [
   {
     name: "Binary Tree (31 nodes)",
@@ -64,7 +88,6 @@ const graphs = [
       return edges;
     })()
   },
-  // Circle Graph removed here
   {
     name: "Grid Graph (5x5 = 25 nodes)",
     totalNodes: 25,
@@ -90,9 +113,7 @@ const graphs = [
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           const idx = r * cols + c;
-          // right neighbor
           if (c + 1 < cols) edges.push([idx, idx + 1]);
-          // down neighbor
           if (r + 1 < rows) edges.push([idx, idx + cols]);
         }
       }
@@ -108,6 +129,12 @@ let animOrder = [];
 let visitedEdges = new Set();
 
 const radius = 18;
+
+let isRunning = false;
+let isPaused = true; // initially paused until Play is clicked
+let bfsGenerator = null;
+
+let currentTimeout = null;
 
 function buildAdjacency() {
   adj = Array.from({ length: graph.totalNodes }, () => []);
@@ -178,38 +205,64 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function runBFS(start) {
+// Typewriter effect: appends text char-by-char to the explanation container with abort support
+async function typeWriter(text, container, delay = 40, abortSignal) {
+  return new Promise(async (resolve, reject) => {
+    if (!text) {
+      resolve();
+      return;
+    }
+    let i = 0;
+    const chars = text.split("");
+    while (i < chars.length) {
+      if (abortSignal.aborted) {
+        reject(new Error("Cancelled"));
+        return;
+      }
+      container.textContent += chars[i];
+      container.scrollTop = container.scrollHeight;
+      i++;
+      await sleep(delay);
+    }
+    container.textContent += "\n";
+    container.scrollTop = container.scrollHeight;
+    resolve();
+  });
+}
+
+// BFS generator yields explanation steps
+function* bfsGen(start) {
   const visited = Array(graph.totalNodes).fill(false);
   const queue = [];
   animOrder = [];
   visitedEdges.clear();
 
+  yield `Starting BFS from node ${start}.`;
+
   queue.push(start);
   visited[start] = true;
-  drawGraph();
-  updateOrderDisplay();
 
   while (queue.length > 0) {
     const u = queue.shift();
+    yield `Dequeued node ${u} for processing.`;
+
     animOrder.push(u);
-    drawGraph();
-    updateOrderDisplay();
-    await sleep(600);
+    yield null; // redraw step indicator (no explanation text)
 
     for (const v of adj[u]) {
       if (!visited[v]) {
         visitedEdges.add(`${u}-${v}`);
-
+        yield `Visiting node ${v} from node ${u}, marking it as visited and adding to queue.`;
         visited[v] = true;
         queue.push(v);
-
         animOrder.push(v);
-        drawGraph();
-        updateOrderDisplay();
-        await sleep(600);
+        yield null; // redraw
+      } else {
+        yield `Node ${v} already visited, skipping.`;
       }
     }
   }
+  yield "BFS traversal completed.";
 }
 
 function updateOrderDisplay() {
@@ -217,35 +270,125 @@ function updateOrderDisplay() {
   document.getElementById("graphName").textContent = `Current Graph: ${graph.name}`;
 }
 
+function resetSimulation() {
+  isRunning = false;
+  isPaused = true;
+  animOrder = [];
+  visitedEdges.clear();
+  bfsGenerator = null;
+
+  clearTimeout(currentTimeout);
+  currentTimeout = null;
+
+  // Reset UI states
+  document.getElementById("playPause").textContent = "Play";
+  document.getElementById("explanationContainer").textContent = "";
+  drawGraph();
+  updateOrderDisplay();
+}
+
+async function animateBFS(start) {
+  isRunning = true;
+  isPaused = false;
+  document.getElementById("playPause").textContent = "Pause";
+  
+  bfsGenerator = bfsGen(start);
+  const explanationContainer = document.getElementById("explanationContainer");
+  const abortController = new AbortController();
+
+  async function step() {
+    if (!isRunning || isPaused) {
+      // Wait a bit and re-check if resumed
+      currentTimeout = setTimeout(step, 200);
+      return;
+    }
+    
+    const { value, done } = bfsGenerator.next();
+    if (done) {
+      isRunning = false;
+      document.getElementById("playPause").textContent = "Play";
+      return;
+    }
+    
+    if (value !== null) {
+      try {
+        await typeWriter(value.trim(), explanationContainer, 40, abortController.signal);
+      } catch {
+        // Cancelled - stop further animation
+        return;
+      }
+    }
+
+    drawGraph();
+    updateOrderDisplay();
+
+    // Next step after delay (shorter if no text)
+    const delay = (value === null) ? 600 : 1000;
+    currentTimeout = setTimeout(step, delay);
+  }
+
+  step();
+
+  // Return abortController to cancel if needed
+  return abortController;
+}
+
+let currentAbortController = null;
+
 document.addEventListener("DOMContentLoaded", () => {
   buildAdjacency();
   fillSelects();
   drawGraph();
   updateOrderDisplay();
 
-  document.getElementById("run").onclick = () => {
-    animOrder = [];
-    visitedEdges.clear();
-    const start = +document.getElementById("start").value;
-    runBFS(start);
+  const playPauseBtn = document.getElementById("playPause");
+  const resetBtn = document.getElementById("reset");
+  const changeGraphBtn = document.getElementById("changeGraph");
+
+  playPauseBtn.onclick = () => {
+    if (!isRunning) {
+      // Start animation
+      const start = +document.getElementById("start").value;
+      animateBFS(start).then(controller => {
+        currentAbortController = controller;
+      });
+    } else if (isPaused) {
+      // Resume
+      isPaused = false;
+      playPauseBtn.textContent = "Pause";
+    } else {
+      // Pause
+      isPaused = true;
+      playPauseBtn.textContent = "Play";
+    }
   };
 
-  document.getElementById("reset").onclick = () => {
-    animOrder = [];
-    visitedEdges.clear();
-    drawGraph();
-    updateOrderDisplay();
+  resetBtn.onclick = () => {
+    if (isRunning) {
+      isRunning = false;
+      isPaused = true;
+      if (currentAbortController) currentAbortController.abort();
+      currentAbortController = null;
+      clearTimeout(currentTimeout);
+      currentTimeout = null;
+    }
+    resetSimulation();
   };
 
-  document.getElementById("changeGraph").onclick = () => {
+  changeGraphBtn.onclick = () => {
+    if (isRunning) {
+      isRunning = false;
+      isPaused = true;
+      if (currentAbortController) currentAbortController.abort();
+      currentAbortController = null;
+      clearTimeout(currentTimeout);
+      currentTimeout = null;
+    }
     currentGraphIndex = (currentGraphIndex + 1) % graphs.length;
     graph = graphs[currentGraphIndex];
-    animOrder = [];
-    visitedEdges.clear();
     buildAdjacency();
     fillSelects();
-    drawGraph();
-    updateOrderDisplay();
+    resetSimulation();
   };
 });
 </script>

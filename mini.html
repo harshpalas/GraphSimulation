@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MST Visualizer (Prim & Kruskal)</title>
+  <title>MST Visualizer (Prim & Kruskal) - Pause & Slow Explanation</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     svg {
@@ -11,17 +11,38 @@
       border-radius: 12px;
       box-shadow: 0 4px 8px rgb(0 0 0 / 0.5);
     }
+    #info {
+  background-color: #1e293b;
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 60vh; /* prevent it from growing too huge */
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: inset 0 0 5px #0f172a;
+  user-select: text;
+  margin-top: 1rem;
+  transition: max-height 0.3s ease;
+}
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-6">
   <div class="w-[1400px] bg-gray-800 p-6 rounded-xl shadow-xl flex gap-6">
     <!-- Sidebar -->
-    <div class="w-64 flex flex-col gap-4">
+    <div class="w-64 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
       <h1 class="text-3xl font-bold mb-4">MST Visualizer</h1>
       <button id="runPrim" class="bg-green-600 hover:bg-green-700 rounded py-3 px-4 font-semibold">Run Prim's MST</button>
       <button id="runKruskal" class="bg-green-600 hover:bg-green-700 rounded py-3 px-4 font-semibold">Run Kruskal's MST</button>
+      <button id="pausePlay" class="bg-yellow-600 hover:bg-yellow-700 rounded py-3 px-4 font-semibold mt-4">Pause</button>
       <button id="reset" class="bg-gray-400 hover:bg-gray-500 rounded py-3 px-4 font-semibold mt-6">Reset</button>
-      <p id="info" class="mt-4 text-gray-300 min-h-[130px] whitespace-pre-wrap"></p>
+      <div id="info"></div>
     </div>
 
     <!-- Graph Area -->
@@ -30,211 +51,302 @@
     </div>
   </div>
 
-  <script>
-    const svg = document.getElementById("graph");
+<script>
+  // === Setup and data ===
+  const svg = document.getElementById("graph");
+  const info = document.getElementById("info");
 
-    const positions = [
-      {x: 150, y: 100}, {x: 300, y: 150}, {x: 450, y: 100}, {x: 600, y: 150}, {x: 750, y: 100},
-      {x: 150, y: 400}, {x: 300, y: 350}, {x: 450, y: 400}, {x: 600, y: 350}, {x: 750, y: 400}
-    ];
+  const positions = [
+    {x: 150, y: 100}, {x: 300, y: 150}, {x: 450, y: 100}, {x: 600, y: 150}, {x: 750, y: 100},
+    {x: 150, y: 400}, {x: 300, y: 350}, {x: 450, y: 400}, {x: 600, y: 350}, {x: 750, y: 400}
+  ];
 
-    const edges = [
-      [0,1, 4], [0,5, 2], [1,2, 6], [1,6, 3],
-      [2,3, 5], [2,7, 4], [3,4, 2], [3,8, 6],
-      [4,9, 3], [5,6, 7], [6,7, 4], [7,8, 5],
-      [8,9, 2], [5,7, 8], [1,5, 1], [6,8, 3], [0,2, 9]
-    ];
+  const edges = [
+    [0,1, 4], [0,5, 2], [1,2, 6], [1,6, 3],
+    [2,3, 5], [2,7, 4], [3,4, 2], [3,8, 6],
+    [4,9, 3], [5,6, 7], [6,7, 4], [7,8, 5],
+    [8,9, 2], [5,7, 8], [1,5, 1], [6,8, 3], [0,2, 9]
+  ];
 
-    const n = positions.length;
-    const adj = Array.from({length: n}, () => []);
+  const n = positions.length;
+  const adj = Array.from({length: n}, () => []);
+  for(const [u,v,w] of edges){
+    adj[u].push({to:v, w});
+    adj[v].push({to:u, w});
+  }
+
+  // === Draw graph function ===
+  function drawGraph(mstEdges = [], highlightNode = -1, highlightEdge = null){
+    svg.innerHTML = "";
     for(const [u,v,w] of edges){
-      adj[u].push({to:v, w});
-      adj[v].push({to:u, w});
+      const p1 = positions[u];
+      const p2 = positions[v];
+      const isMST = mstEdges.some(e => (e[0] === u && e[1] === v) || (e[0] === v && e[1] === u));
+      const isHighlightEdge = highlightEdge && ((highlightEdge[0] === u && highlightEdge[1] === v) || (highlightEdge[0] === v && highlightEdge[1] === u));
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", p1.x);
+      line.setAttribute("y1", p1.y);
+      line.setAttribute("x2", p2.x);
+      line.setAttribute("y2", p2.y);
+      line.setAttribute("stroke", isHighlightEdge ? "#f97316" : (isMST ? "#3b82f6" : "#9ca3af"));
+      line.setAttribute("stroke-width", isMST || isHighlightEdge ? 5 : 2);
+      svg.appendChild(line);
+
+      // Edge weight label with offset for clarity
+      const midX = (p1.x + p2.x) / 2;
+      const midY = (p1.y + p2.y) / 2;
+      const dx = p2.y - p1.y;
+      const dy = p1.x - p2.x;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      const offset = 12;
+      const tx = midX + (dx / len) * offset;
+      const ty = midY + (dy / len) * offset;
+
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", tx);
+      text.setAttribute("y", ty);
+      text.setAttribute("fill", isHighlightEdge ? "#f97316" : (isMST ? "#3b82f6" : "#f9fafb"));
+      text.setAttribute("font-size", "14");
+      text.setAttribute("font-weight", "bold");
+      text.setAttribute("text-anchor", "middle");
+      text.textContent = w;
+      svg.appendChild(text);
     }
 
-    function drawGraph(mstEdges = [], highlightNode = -1, highlightEdge = null){
-      svg.innerHTML = "";
-      for(const [u,v,w] of edges){
-        const p1 = positions[u];
-        const p2 = positions[v];
-        const isMST = mstEdges.some(e => (e[0] === u && e[1] === v) || (e[0] === v && e[1] === u));
-        const isHighlightEdge = highlightEdge && ((highlightEdge[0] === u && highlightEdge[1] === v) || (highlightEdge[0] === v && highlightEdge[1] === u));
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        line.setAttribute("x1", p1.x);
-        line.setAttribute("y1", p1.y);
-        line.setAttribute("x2", p2.x);
-        line.setAttribute("y2", p2.y);
-        line.setAttribute("stroke", isHighlightEdge ? "#f97316" : (isMST ? "#3b82f6" : "#9ca3af"));
-        line.setAttribute("stroke-width", isMST || isHighlightEdge ? 5 : 2);
-        svg.appendChild(line);
+    for(let i=0; i<n; i++){
+      const p = positions[i];
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", p.x);
+      circle.setAttribute("cy", p.y);
+      circle.setAttribute("r", 22);
+      circle.setAttribute("fill", i === highlightNode ? "#3b82f6" : "#e5e7eb");
+      circle.setAttribute("stroke", "#1e293b");
+      circle.setAttribute("stroke-width", "3");
+      svg.appendChild(circle);
 
-        const midX = (p1.x + p2.x) / 2;
-        const midY = (p1.y + p2.y) / 2;
-        const dx = p2.y - p1.y;
-        const dy = p1.x - p2.x;
-        const len = Math.sqrt(dx * dx + dy * dy);
-        const offset = 12;
-        const tx = midX + (dx / len) * offset;
-        const ty = midY + (dy / len) * offset;
-
-        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        text.setAttribute("x", tx);
-        text.setAttribute("y", ty);
-        text.setAttribute("fill", isHighlightEdge ? "#f97316" : (isMST ? "#3b82f6" : "#f9fafb"));
-        text.setAttribute("font-size", "14");
-        text.setAttribute("font-weight", "bold");
-        text.setAttribute("text-anchor", "middle");
-        text.textContent = w;
-        svg.appendChild(text);
-      }
-
-      for(let i=0; i<n; i++){
-        const p = positions[i];
-        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        circle.setAttribute("cx", p.x);
-        circle.setAttribute("cy", p.y);
-        circle.setAttribute("r", 22);
-        circle.setAttribute("fill", i === highlightNode ? "#3b82f6" : "#e5e7eb");
-        circle.setAttribute("stroke", "#1e293b");
-        circle.setAttribute("stroke-width", "3");
-        svg.appendChild(circle);
-
-        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        text.setAttribute("x", p.x);
-        text.setAttribute("y", p.y + 7);
-        text.setAttribute("text-anchor", "middle");
-        text.setAttribute("font-size", "20");
-        text.setAttribute("font-weight", "bold");
-        text.setAttribute("fill", i === highlightNode ? "#fff" : "#000");
-        text.textContent = i;
-        svg.appendChild(text);
-      }
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", p.x);
+      text.setAttribute("y", p.y + 7);
+      text.setAttribute("text-anchor", "middle");
+      text.setAttribute("font-size", "20");
+      text.setAttribute("font-weight", "bold");
+      text.setAttribute("fill", i === highlightNode ? "#fff" : "#000");
+      text.textContent = i;
+      svg.appendChild(text);
     }
+  }
 
-    const delay = ms => new Promise(r => setTimeout(r, ms));
+  // === Pause/play control variables ===
+  let isPaused = false;
+  const pausePlayBtn = document.getElementById("pausePlay");
+  let waitingResolve = null;
 
-    async function runPrimsMST(startNode){
-      disableButtons(true);
-      const info = document.getElementById("info");
-      info.textContent = "Running Prim's MST...\n";
-      const selected = Array(n).fill(false);
-      const key = Array(n).fill(Infinity);
-      const parent = Array(n).fill(-1);
-      key[startNode] = 0;
-      let mstEdges = [];
-
-      for(let count=0; count < n; count++){
-        let u = -1;
-        let minKey = Infinity;
-        for(let v=0; v<n; v++){
-          if(!selected[v] && key[v]<minKey){
-            minKey = key[v];
-            u = v;
-          }
-        }
-        selected[u] = true;
-        if(parent[u] !== -1) {
-          mstEdges.push([parent[u], u]);
-        }
-        drawGraph(mstEdges, u);
-        info.textContent = `Selected node: ${u}\nMST Edges: ${mstEdges.map(e=>`(${e[0]},${e[1]})`).join(", ")}`;
-        await delay(1200);
-
-        for(const {to:v,w} of adj[u]){
-          if(!selected[v] && w < key[v]){
-            key[v] = w;
-            parent[v] = u;
-          }
-        }
-      }
-      info.textContent += "\nPrim's MST Complete!";
-      disableButtons(false);
+  pausePlayBtn.onclick = () => {
+    isPaused = !isPaused;
+    pausePlayBtn.textContent = isPaused ? "Play" : "Pause";
+    if(!isPaused && waitingResolve) {
+      waitingResolve();
+      waitingResolve = null;
     }
+  };
 
-    class UnionFind {
-      constructor(size){
-        this.parent = Array(size).fill(0).map((_,i)=>i);
-        this.rank = Array(size).fill(0);
+  // Controlled delay respecting pause state
+  async function controlledDelay(ms){
+    let start = Date.now();
+    while(true){
+      if(!isPaused && Date.now() - start >= ms) break;
+      if(isPaused){
+        await new Promise(resolve => {
+          waitingResolve = resolve;
+        });
+        waitingResolve = null;
+        start = Date.now();
       }
-      find(x){
-        if(this.parent[x] !== x) this.parent[x] = this.find(this.parent[x]);
-        return this.parent[x];
-      }
-      union(x,y){
-        const rx = this.find(x);
-        const ry = this.find(y);
-        if(rx === ry) return false;
-        if(this.rank[rx] < this.rank[ry]){
-          this.parent[rx] = ry;
-        } else if(this.rank[ry] < this.rank[rx]){
-          this.parent[ry] = rx;
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
+
+  // Append lines with very slow typewriter effect
+  async function appendLineWithTypewriter(line, delay=60){
+    return new Promise(resolve => {
+      let i = 0;
+      function type(){
+        if(isPaused) {
+          waitingResolve = () => {
+            waitingResolve = null;
+            type();
+          };
+          return;
+        }
+        if(i < line.length){
+          info.textContent += line.charAt(i);
+          i++;
+          info.scrollTop = info.scrollHeight;
+          setTimeout(type, delay);
         } else {
-          this.parent[ry] = rx;
-          this.rank[rx]++;
+          info.textContent += "\n";
+          info.scrollTop = info.scrollHeight;
+          resolve();
         }
-        return true;
       }
+      type();
+    });
+  }
+
+  // Disable/enable buttons
+  function disableButtons(disabled){
+  ["runPrim", "runKruskal", "reset"].forEach(id => {
+    const btn = document.getElementById(id);
+    btn.disabled = disabled;
+  });
+
+  if (!disabled) {
+    isPaused = false;
+    pausePlayBtn.textContent = "Pause";
+  }
+}
+
+
+  // === Prim's MST algorithm with detailed beginner explanation ===
+  async function runPrimsMST(startNode){
+    disableButtons(true);
+    info.textContent = "";
+    await appendLineWithTypewriter("Welcome to Prim's Minimum Spanning Tree algorithm!\n");
+    await appendLineWithTypewriter(`We start from node ${startNode}.\n`);
+    await appendLineWithTypewriter("Prim's algorithm builds a MST by growing one connected component.\nIt repeatedly adds the smallest edge that connects a new node to the MST.\n");
+    await controlledDelay(1500);
+
+    const selected = Array(n).fill(false);
+    const key = Array(n).fill(Infinity);
+    const parent = Array(n).fill(-1);
+    key[startNode] = 0;
+    let mstEdges = [];
+
+    for(let count=0; count < n; count++){
+      let u = -1;
+      let minKey = Infinity;
+      for(let v=0; v<n; v++){
+        if(!selected[v] && key[v]<minKey){
+          minKey = key[v];
+          u = v;
+        }
+      }
+      selected[u] = true;
+
+      if(parent[u] !== -1) {
+        mstEdges.push([parent[u], u]);
+        await appendLineWithTypewriter(`Added edge (${parent[u]}, ${u}) to MST because it has the smallest weight ${minKey} connecting a new node.`);
+      } else {
+        await appendLineWithTypewriter(`Starting node ${u} is now included in the MST.`);
+      }
+
+      drawGraph(mstEdges, u);
+      await controlledDelay(3500);
+
+      await appendLineWithTypewriter(`Checking all edges from node ${u} to see if we can update cheaper edges to other nodes not in MST yet.`);
+      for(const {to:v,w} of adj[u]){
+        if(!selected[v] && w < key[v]){
+          await appendLineWithTypewriter(`Found edge (${u}, ${v}) with weight ${w} cheaper than current key ${key[v]} for node ${v}. Updating key and parent.`);
+          key[v] = w;
+          parent[v] = u;
+        }
+      }
+      await controlledDelay(3500);
     }
+    await appendLineWithTypewriter("\nAll nodes are included. Prim's MST is complete!");
+    disableButtons(false);
+  }
 
-    async function runKruskalMST(){
-      disableButtons(true);
-      const info = document.getElementById("info");
-      info.textContent = "Running Kruskal's MST...\n";
-      const sortedEdges = edges.slice().sort((a,b) => a[2] - b[2]);
-      const uf = new UnionFind(n);
-      let mstEdges = [];
+  // Union-Find structure for Kruskal's algorithm
+  class UnionFind {
+    constructor(size){
+      this.parent = Array(size).fill(0).map((_,i)=>i);
+      this.rank = Array(size).fill(0);
+    }
+    find(x){
+      if(this.parent[x] !== x) this.parent[x] = this.find(this.parent[x]);
+      return this.parent[x];
+    }
+    union(x,y){
+      const rx = this.find(x);
+      const ry = this.find(y);
+      if(rx === ry) return false;
+      if(this.rank[rx] < this.rank[ry]){
+        this.parent[rx] = ry;
+      } else if(this.rank[ry] < this.rank[rx]){
+        this.parent[ry] = rx;
+      } else {
+        this.parent[ry] = rx;
+        this.rank[rx]++;
+      }
+      return true;
+    }
+  }
 
-      for(let i=0; i<sortedEdges.length; i++){
-        const [u,v,w] = sortedEdges[i];
+  // Kruskal's MST algorithm with detailed beginner explanation
+  async function runKruskalMST(){
+    disableButtons(true);
+    info.textContent = "";
+    await appendLineWithTypewriter("Welcome to Kruskal's Minimum Spanning Tree algorithm!\n");
+    await appendLineWithTypewriter("Kruskal's algorithm builds a MST by sorting all edges by weight,\nthen adding edges one by one, skipping those that form a cycle.\n");
+    await controlledDelay(1500);
+
+    const sortedEdges = edges.slice().sort((a,b) => a[2] - b[2]);
+    const uf = new UnionFind(n);
+    let mstEdges = [];
+
+    for(let i=0; i<sortedEdges.length; i++){
+      const [u,v,w] = sortedEdges[i];
+      drawGraph(mstEdges, -1, [u,v]);
+      await appendLineWithTypewriter(`Considering edge (${u}, ${v}) with weight ${w}.`);
+      await controlledDelay(3500);
+
+      if(uf.union(u,v)){
+        mstEdges.push([u,v]);
         drawGraph(mstEdges, -1, [u,v]);
-        info.textContent = `Considering edge (${u}, ${v}) weight: ${w}\nMST Edges: ${mstEdges.map(e=>`(${e[0]},${e[1]})`).join(", ")}`;
-        await delay(1500);
-
-        if(uf.union(u,v)){
-          mstEdges.push([u,v]);
-          drawGraph(mstEdges, -1, [u,v]);
-          info.textContent = `Edge (${u}, ${v}) added to MST.\nMST Edges: ${mstEdges.map(e=>`(${e[0]},${e[1]})`).join(", ")}`;
-          await delay(1000);
-          if(mstEdges.length === n-1) break;
-        } else {
-          info.textContent += `\nEdge (${u}, ${v}) creates a cycle, skipped.`;
-          await delay(1000);
-        }
+        await appendLineWithTypewriter(`Edge (${u}, ${v}) added to MST as it does not create a cycle.`);
+        await controlledDelay(3500);
+        if(mstEdges.length === n-1) break;
+      } else {
+        await appendLineWithTypewriter(`Edge (${u}, ${v}) skipped because it would create a cycle in the MST.`);
+        await controlledDelay(3500);
       }
-      info.textContent += "\nKruskal's MST Complete!";
-      drawGraph(mstEdges, -1, null);
-      disableButtons(false);
     }
 
-    function disableButtons(disabled){
-      document.getElementById("runPrim").disabled = disabled;
-      document.getElementById("runKruskal").disabled = disabled;
-      document.getElementById("reset").disabled = disabled;
-      ["runPrim", "runKruskal", "reset"].forEach(id => {
-        document.getElementById(id).classList.toggle("opacity-50", disabled);
-        document.getElementById(id).classList.toggle("cursor-not-allowed", disabled);
-      });
+    await appendLineWithTypewriter("\nAll nodes connected without cycles. Kruskal's MST is complete!");
+    drawGraph(mstEdges, -1, null);
+    disableButtons(false);
+  }
+
+  // === Button handlers ===
+  document.getElementById("runPrim").onclick = () => {
+    const input = prompt(`Enter starting node (0 to ${n - 1}):`);
+    const start = parseInt(input);
+    if (isNaN(start) || start < 0 || start >= n) {
+      alert("Invalid node. Please enter a number between 0 and " + (n - 1));
+      return;
     }
+    runPrimsMST(start);
+  };
 
-    document.getElementById("runPrim").onclick = () => {
-      const input = prompt(`Enter starting node (0 to ${n - 1}):`);
-      const start = parseInt(input);
-      if (isNaN(start) || start < 0 || start >= n) {
-        alert("Invalid node. Please enter a number between 0 and " + (n - 1));
-        return;
-      }
-      runPrimsMST(start);
-    };
+  document.getElementById("runKruskal").onclick = () => {
+    runKruskalMST();
+  };
 
-    document.getElementById("runKruskal").onclick = () => {
-      runKruskalMST();
-    };
+  document.getElementById("reset").onclick = () => {
+  isPaused = false;
+  pausePlayBtn.textContent = "Pause";
+  info.textContent = "";
+  svg.innerHTML = "";
+  drawGraph(); // redraw the initial unhighlighted graph
+  disableButtons(false); // enable all buttons again
+};
 
-    document.getElementById("reset").onclick = () => {
-      location.reload();
-    };
 
-    drawGraph();
-  </script>
+  // Initial draw to show graph
+  drawGraph();
+  
+</script>
+
 </body>
 </html>

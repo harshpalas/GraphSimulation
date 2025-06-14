@@ -3,10 +3,40 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Graph DFS Visualizer - Multiple Graphs</title>
+  <title>Graph DFS Visualizer - Multiple Graphs with Explanation</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Scrollable container for explanation */
+    #explanation {
+      background: #1e293b;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      height: 220px;
+      overflow-y: auto;
+      font-family: monospace;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      font-size: 15px;
+      margin-top: 1rem;
+      box-shadow: inset 0 0 8px #334155;
+    }
+    /* Typewriter effect cursor */
+    .cursor {
+      display: inline-block;
+      background-color: #3b82f6;
+      width: 8px;
+      animation: blink 1s infinite;
+      vertical-align: bottom;
+      margin-left: 2px;
+      border-radius: 2px;
+    }
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+  </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
   <div class="p-6 bg-gray-800 rounded-xl shadow-xl w-[1400px] max-w-full">
     <div class="flex gap-6 flex-wrap">
       <!-- Sidebar -->
@@ -19,8 +49,12 @@
         <button id="run" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">Run DFS</button>
         <button id="reset" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded">Reset</button>
         <button id="changeGraph" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded">Change Graph</button>
+        <button id="playPause" class="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded mt-2">Play</button>
         <p id="orderDisplay" class="text-sm text-gray-300 mt-4">DFS Order: </p>
         <p id="graphName" class="text-gray-400 mt-2"></p>
+
+        <!-- Explanation container -->
+        <div id="explanation" tabindex="0" aria-label="DFS explanation text" role="log" aria-live="polite"></div>
       </div>
 
       <!-- Graph Area -->
@@ -31,7 +65,7 @@
   </div>
 
 <script>
-// Graphs definitions: nodes, edges, positions
+// Graphs definitions (unchanged)
 const graphs = [
   {
     name: "Binary Tree (31 nodes)",
@@ -108,6 +142,9 @@ let visitedEdges = new Set();
 
 const radius = 18;
 
+let play = false; // play/pause flag
+let pauseResolve = null; // resolver for pause
+
 function buildAdjacency() {
   adj = Array.from({ length: graph.totalNodes }, () => []);
   graph.edges.forEach(([u, v]) => {
@@ -177,32 +214,127 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// --- TYPEWRITER FUNCTION ---
+// Types out the given text letter by letter inside the given element
+async function typeWriterEffect(element, text, speed = 20) {
+  element.textContent = ""; // clear
+  for (let i = 0; i < text.length; i++) {
+    // Wait if paused
+    await waitIfPaused();
+
+    element.textContent += text.charAt(i);
+    // Add blinking cursor effect:
+    // We'll add a span cursor after text, removed/readded to simulate blinking
+    if (!element.querySelector(".cursor")) {
+      const cursor = document.createElement("span");
+      cursor.className = "cursor";
+      element.appendChild(cursor);
+    }
+    await sleep(speed);
+  }
+  // Remove cursor after done typing
+  const cursor = element.querySelector(".cursor");
+  if (cursor) cursor.remove();
+}
+
+// Waits if play = false, resolves when play = true
+function waitIfPaused() {
+  if (play) return Promise.resolve();
+  return new Promise(resolve => (pauseResolve = resolve));
+}
+
+// Resolves pause when toggled play on
+function resumeIfPaused() {
+  if (pauseResolve) {
+    pauseResolve();
+    pauseResolve = null;
+  }
+}
+
+const explanationContainer = document.getElementById("explanation");
+
+function appendExplanationLine(text) {
+  const line = document.createElement("div");
+  explanationContainer.appendChild(line);
+  // Scroll to bottom after next frame
+  setTimeout(() => {
+    explanationContainer.scrollTop = explanationContainer.scrollHeight;
+  }, 50);
+  return line;
+}
+
 async function runDFS(start) {
   const visited = Array(graph.totalNodes).fill(false);
   animOrder = [];
   visitedEdges.clear();
 
+  explanationContainer.innerHTML = ""; // clear explanations on new run
+  updateOrderDisplay();
+
   async function dfs(u) {
+    // Explanation line for visiting node
+    let line = appendExplanationLine(`Visiting node ${u}...`);
+    await typeWriterEffect(line, `Visiting node ${u}...`, 30);
+
     visited[u] = true;
     animOrder.push(u);
     drawGraph();
     updateOrderDisplay();
-    await sleep(600);
+
+    await sleep(400);
 
     for (const v of adj[u]) {
       if (!visited[v]) {
+        // Explain edge traversal
+        line = appendExplanationLine(`Going deeper from node ${u} to ${v}...`);
+        await typeWriterEffect(line, `Going deeper from node ${u} to ${v}...`, 30);
+
         visitedEdges.add(`${u}-${v}`);
+        drawGraph();
+        await sleep(400);
+
         await dfs(v);
+      } else {
+        // Explain skipping visited
+        line = appendExplanationLine(`Node ${v} already visited, skipping...`);
+        await typeWriterEffect(line, `Node ${v} already visited, skipping...`, 30);
+        await sleep(300);
       }
     }
+    // After exploring all neighbors
+    line = appendExplanationLine(`Backtracking from node ${u}...`);
+    await typeWriterEffect(line, `Backtracking from node ${u}...`, 30);
+    await sleep(300);
   }
 
   await dfs(start);
+
+  const doneLine = appendExplanationLine("DFS Complete!");
+  await typeWriterEffect(doneLine, "DFS Complete!", 30);
+
+  play = false;
+  updatePlayPauseButton();
 }
 
 function updateOrderDisplay() {
   document.getElementById("orderDisplay").textContent = `DFS Order: ${animOrder.join(" → ")}`;
   document.getElementById("graphName").textContent = `Current Graph: ${graph.name}`;
+}
+
+function resetAll() {
+  animOrder = [];
+  visitedEdges.clear();
+  explanationContainer.innerHTML = "";
+  drawGraph();
+  updateOrderDisplay();
+  play = false;
+  updatePlayPauseButton();
+  resumeIfPaused();
+}
+
+function updatePlayPauseButton() {
+  const btn = document.getElementById("playPause");
+  btn.textContent = play ? "Pause" : "Play";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -211,18 +343,19 @@ document.addEventListener("DOMContentLoaded", () => {
   drawGraph();
   updateOrderDisplay();
 
-  document.getElementById("run").onclick = () => {
+  document.getElementById("run").onclick = async () => {
+    if (play) return; // Prevent double run
     animOrder = [];
     visitedEdges.clear();
+    play = true;
+    updatePlayPauseButton();
+
     const start = +document.getElementById("start").value;
-    runDFS(start);
+    await runDFS(start);
   };
 
   document.getElementById("reset").onclick = () => {
-    animOrder = [];
-    visitedEdges.clear();
-    drawGraph();
-    updateOrderDisplay();
+    resetAll();
   };
 
   document.getElementById("changeGraph").onclick = () => {
@@ -232,8 +365,15 @@ document.addEventListener("DOMContentLoaded", () => {
     visitedEdges.clear();
     buildAdjacency();
     fillSelects();
-    drawGraph();
-    updateOrderDisplay();
+    resetAll();
+  };
+
+  document.getElementById("playPause").onclick = () => {
+    play = !play;
+    updatePlayPauseButton();
+    if (play) {
+      resumeIfPaused();
+    }
   };
 });
 </script>

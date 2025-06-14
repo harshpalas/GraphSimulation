@@ -1,34 +1,64 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Dijkstra Visualizer</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
-  <div class="p-6 bg-gray-800 rounded-xl shadow-xl w-[1400px]">
-    <div class="flex gap-6">
-      <!-- Sidebar -->
-      <div class="w-64 flex flex-col gap-4">
-        <h2 class="text-2xl font-bold mb-2">Dijkstra Visualizer</h2>
-        <label>
-          Start Node:
-          <select id="start" class="w-full text-black rounded p-2 mt-1"></select>
-        </label>
-        <label>
-          End Node:
-          <select id="end" class="w-full text-black rounded p-2 mt-1"></select>
-        </label>
-        <button id="run" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">Run</button>
-        <button id="reset" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded">Reset</button>
-        <p id="pathDisplay" class="text-sm text-gray-300 mt-4">Shortest Path: </p>
-      </div>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dijkstra Visualizer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  #explanation {
+    scrollbar-width: thin;
+    scrollbar-color: #60a5fa #1e293b;
+  }
+  #explanation::-webkit-scrollbar {
+    width: 8px;
+  }
+  #explanation::-webkit-scrollbar-thumb {
+    background-color: #60a5fa;
+    border-radius: 4px;
+  }
 
-      <!-- Graph Area -->
-      <div class="flex-1">
-        <svg id="graph" width="1000" height="700" class="rounded bg-gray-700 shadow"></svg>
-      </div>
+  /* Responsive layout tweaks */
+  @media (max-width: 1100px) {
+    .container-flex {
+      flex-direction: column;
+    }
+    #graph {
+      width: 100% !important;
+      height: 500px !important;
+      margin-top: 16px;
+    }
+    .sidebar {
+      width: 100% !important;
+      max-width: none !important;
+      margin-bottom: 16px;
+    }
+  }
+</style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
+  <div class="p-6 bg-gray-800 rounded-xl shadow-xl w-full max-w-[1400px] flex container-flex gap-6 flex-wrap">
+    <!-- Sidebar -->
+    <div class="sidebar w-64 flex flex-col gap-4 flex-shrink-0">
+      <h2 class="text-2xl font-bold mb-2">Dijkstra Visualizer</h2>
+      <label>
+        Start Node:
+        <select id="start" class="w-full text-black rounded p-2 mt-1"></select>
+      </label>
+      <label>
+        End Node:
+        <select id="end" class="w-full text-black rounded p-2 mt-1"></select>
+      </label>
+      <button id="run" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">Run</button>
+      <button id="reset" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded">Reset</button>
+      <button id="toggle" class="bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-4 rounded">Pause</button>
+      <p id="pathDisplay" class="text-sm text-gray-300 mt-2">Shortest Path: </p>
+      <div id="explanation" class="text-sm text-blue-300 mt-2 max-h-80 overflow-auto p-2 bg-gray-900 rounded"></div>
+    </div>
+
+    <!-- Graph Area -->
+    <div class="flex-1 min-w-[300px]">
+      <svg id="graph" width="1000" height="700" class="rounded bg-gray-700 shadow w-full h-[700px]"></svg>
     </div>
   </div>
 
@@ -44,6 +74,7 @@ const edges = [
   [3, 4], [3, 5], [3, 6], [4, 5], [4, 7], [5, 6], [5, 7], [5, 8], [6, 8], [7, 9], [8, 9]
 ];
 
+// Create adjacency matrix with weights
 let graph = Array.from({ length: 10 }, () => Array(10).fill(Infinity));
 edges.forEach(([u, v]) => {
   const w = Math.floor(Math.random() * 20) + 5;
@@ -62,15 +93,50 @@ class PriorityQueue {
 }
 
 let animPath = [];
+let distMemory = [];
+let isPaused = false;
+let toggleBtn;
 
-function drawGraph(highlighted = [], distMap = []) {
+function sleep(ms) {
+  return new Promise(resolve => {
+    const check = () => {
+      if (!isPaused) {
+        resolve();
+      } else {
+        setTimeout(check, 100);
+      }
+    };
+    setTimeout(check, ms);
+  });
+}
+
+async function typeExplanation(text) {
+  const explanationDiv = document.getElementById("explanation");
+  return new Promise(async (resolve) => {
+    let para = document.createElement("p");
+    explanationDiv.appendChild(para);
+
+    for (let i = 0; i < text.length; i++) {
+      while (isPaused) {
+        await sleep(100);
+      }
+      para.textContent += text[i];
+      explanationDiv.scrollTop = explanationDiv.scrollHeight;
+      await sleep(80);  // Slowed down here from 40ms to 80ms
+    }
+    resolve();
+  });
+}
+
+function drawGraph(highlightedEdges = [], distMap = [], currentNode = null, finalHighlight = false) {
   const svg = document.getElementById("graph");
   svg.innerHTML = "";
 
+  // Draw edges
   for (let [u, v] of edges) {
     const p1 = positions[u];
     const p2 = positions[v];
-    const isHighlighted = highlighted.includes(`${u}-${v}`) || highlighted.includes(`${v}-${u}`);
+    const isHighlighted = highlightedEdges.includes(`${u}-${v}`) || highlightedEdges.includes(`${v}-${u}`);
     const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
     line.setAttribute("x1", p1.x);
     line.setAttribute("y1", p1.y);
@@ -78,8 +144,10 @@ function drawGraph(highlighted = [], distMap = []) {
     line.setAttribute("y2", p2.y);
     line.setAttribute("stroke", isHighlighted ? "#3b82f6" : "#ccc");
     line.setAttribute("stroke-width", isHighlighted ? "5" : "2");
+    line.setAttribute("opacity", isHighlighted ? "1" : "0.6");
     svg.appendChild(line);
 
+    // Edge weight label with offset
     const midX = (p1.x + p2.x) / 2;
     const midY = (p1.y + p2.y) / 2;
     const dx = p2.y - p1.y;
@@ -92,97 +160,115 @@ function drawGraph(highlighted = [], distMap = []) {
     const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
     text.setAttribute("x", tx);
     text.setAttribute("y", ty);
-    text.setAttribute("fill", "#fff");
+    text.setAttribute("fill", "#38bdf8");
     text.setAttribute("font-size", "14");
     text.setAttribute("text-anchor", "middle");
+    text.setAttribute("font-weight", "bold");
     text.textContent = graph[u][v];
     svg.appendChild(text);
   }
 
-  for (let i = 0; i < 10; i++) {
+  // Draw nodes
+  for (let i = 0; i < positions.length; i++) {
     const {x, y} = positions[i];
     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     circle.setAttribute("cx", x);
     circle.setAttribute("cy", y);
-    circle.setAttribute("r", 20);
-    circle.setAttribute("fill", animPath.includes(i) ? "#3b82f6" : "#e2e8f0");
+    circle.setAttribute("r", 22);
+    if (animPath.includes(i)) {
+      circle.setAttribute("fill", "#2563eb"); // visited nodes blue
+    } else if (currentNode === i) {
+      circle.setAttribute("fill", "#facc15"); // current node yellow
+    } else {
+      circle.setAttribute("fill", "#e2e8f0"); // default nodes
+    }
     circle.setAttribute("stroke", "#1e293b");
-    circle.setAttribute("stroke-width", "2");
+    circle.setAttribute("stroke-width", "3");
     svg.appendChild(circle);
 
+    // Node label (number)
     const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
     text.setAttribute("x", x);
-    text.setAttribute("y", y + 6);
+    text.setAttribute("y", y + 7);
     text.setAttribute("text-anchor", "middle");
     text.setAttribute("font-size", "18");
     text.setAttribute("font-weight", "bold");
-    text.setAttribute("fill", animPath.includes(i) ? "#fff" : "#000");
+    text.setAttribute("fill", animPath.includes(i) || currentNode === i ? "#fff" : "#000");
     text.textContent = i;
     svg.appendChild(text);
 
+    // Distance display above node if known
     if (distMap[i] !== undefined && distMap[i] !== Infinity) {
       const distText = document.createElementNS("http://www.w3.org/2000/svg", "text");
       distText.setAttribute("x", x);
       distText.setAttribute("y", y - 30);
       distText.setAttribute("text-anchor", "middle");
       distText.setAttribute("font-size", "14");
-      distText.setAttribute("fill", "#38bdf8");
+      // Final distances green, otherwise blue
+      distText.setAttribute("fill", finalHighlight ? "#4ade80" : "#38bdf8");
       distText.textContent = `d: ${distMap[i]}`;
       svg.appendChild(distText);
     }
   }
 }
 
-function fillSelects() {
-  const startSel = document.getElementById("start");
-  const endSel = document.getElementById("end");
-  for (let i = 0; i < 10; i++) {
-    const opt1 = document.createElement("option");
-    opt1.value = i;
-    opt1.textContent = i;
-    const opt2 = opt1.cloneNode(true);
-    startSel.appendChild(opt1);
-    endSel.appendChild(opt2);
-  }
-  endSel.value = 9;
-}
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 async function runDijkstraStepByStep(start, end) {
-  const dist = Array(10).fill(Infinity);
-  const prev = Array(10).fill(null);
-  const visited = Array(10).fill(false);
+  const dist = Array(positions.length).fill(Infinity);
+  const prev = Array(positions.length).fill(null);
+  const visited = Array(positions.length).fill(false);
   const pq = new PriorityQueue();
   dist[start] = 0;
   pq.enqueue(start, 0);
+
+  animPath = [];
+  distMemory = [];
+
+  document.getElementById("explanation").innerHTML = "";
+
+  await typeExplanation(`Starting from node ${start}. Set d[${start}] = 0. All other nodes are at infinity (∞).`);
+  drawGraph([], dist, start);
+  await sleep(1000);
 
   while (!pq.isEmpty()) {
     const u = pq.dequeue();
     if (visited[u]) continue;
     visited[u] = true;
     animPath.push(u);
-    drawGraph([], dist);
+
+    await typeExplanation(`\nExploring node ${u}.`);
+    drawGraph([], dist, u);
     await sleep(800);
 
-    for (let v = 0; v < 10; v++) {
+    for (let v = 0; v < positions.length; v++) {
       if (graph[u][v] !== Infinity && !visited[v]) {
         const alt = dist[u] + graph[u][v];
         if (alt < dist[v]) {
+          await typeExplanation(`\nFound shorter path to node ${v}: updating d[${v}] from ${dist[v] === Infinity ? '∞' : dist[v]} to ${alt} via node ${u}.`);
           dist[v] = alt;
           prev[v] = u;
           pq.enqueue(v, alt);
-          drawGraph([], dist);
-          await sleep(600); // slow down for distance update
+
+          drawGraph([], dist, u);
+          await sleep(800);
+        } else {
+          await typeExplanation(`\nNode ${v} already has a shorter distance d[${v}] = ${dist[v]}, so no update needed.`);
         }
       }
     }
+    drawGraph([], dist, u);
+    await sleep(800);
   }
 
+  distMemory = dist.slice();
+
+  // Show final distances in green
+  drawGraph([], distMemory, null, true);
+
+  // Build path from end to start
   const path = [];
-  for (let at = end; at !== null; at = prev[at]) path.push(at);
+  for (let at = end; at !== null; at = prev[at]) {
+    path.push(at);
+  }
   path.reverse();
 
   if (path[0] === start) {
@@ -190,7 +276,6 @@ async function runDijkstraStepByStep(start, end) {
     for (let i = 1; i < path.length; i++) cost += graph[path[i - 1]][path[i]];
     document.getElementById("pathDisplay").textContent =
       `Shortest Path: ${path.join(" → ")} (Total Cost: ${cost})`;
-
     await animateFinalPath(path);
   } else {
     document.getElementById("pathDisplay").textContent = "No path found.";
@@ -201,22 +286,50 @@ async function animateFinalPath(path) {
   let index = 1;
   const highlightedEdges = [];
   animPath = [path[0]];
-  drawGraph(highlightedEdges);
+  drawGraph(highlightedEdges, distMemory, path[0], true);
+
   while (index < path.length) {
     highlightedEdges.push(`${path[index - 1]}-${path[index]}`);
     animPath.push(path[index]);
-    drawGraph(highlightedEdges);
+    drawGraph(highlightedEdges, distMemory, path[index], true);
+
+    await sleep(1000);
     index++;
-    await sleep(600);
   }
+}
+
+function fillSelects() {
+  const startSel = document.getElementById("start");
+  const endSel = document.getElementById("end");
+  for (let i = 0; i < positions.length; i++) {
+    const opt1 = document.createElement("option");
+    opt1.value = i;
+    opt1.textContent = i;
+    const opt2 = opt1.cloneNode(true);
+    startSel.appendChild(opt1);
+    endSel.appendChild(opt2);
+  }
+  endSel.value = positions.length - 1;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   fillSelects();
   drawGraph();
 
+  toggleBtn = document.getElementById("toggle");
+  toggleBtn.onclick = () => {
+    isPaused = !isPaused;
+    toggleBtn.textContent = isPaused ? "Play" : "Pause";
+  };
+
   document.getElementById("run").onclick = () => {
+    if (isPaused) {
+      isPaused = false;
+      toggleBtn.textContent = "Pause";
+    }
     animPath = [];
+    document.getElementById("explanation").innerHTML = "";
+    document.getElementById("pathDisplay").textContent = "Shortest Path: ";
     const start = +document.getElementById("start").value;
     const end = +document.getElementById("end").value;
     runDijkstraStepByStep(start, end);
