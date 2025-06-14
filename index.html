@@ -73,7 +73,7 @@
       Graphs are one of the most powerful tools in computer science and real-world modeling. From social networks and road maps to recommendation systems and web crawlers, graphs give structure to chaos. But here's the catch — imagining and debugging graphs in your head can be painfully confusing, especially with all those nodes and edges tangled up like spaghetti. That’s why visualization matters. Here, you can watch algorithms unfold step-by-step, making sense of the madness.
     </p>
 
-    <!-- Funny quote with typing effect -->
+    
     <div class="text-xl text-yellow-300 h-20">
       <span id="quote" class="typing block"></span>
       <div class="mt-2 text-right text-sm text-gray-400">— by Harsh</div>
@@ -129,7 +129,7 @@
 
     function showNextQuote() {
       quoteElem.classList.remove("typing");
-      void quoteElem.offsetWidth; // trigger reflow
+      void quoteElem.offsetWidth; 
       quoteElem.textContent = `“${quotes[quoteIndex]}”`;
       quoteElem.classList.add("typing");
 
