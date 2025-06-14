@@ -15,7 +15,7 @@
   background-color: #1e293b;
   border-radius: 8px;
   padding: 12px;
-  max-height: 60vh; /* prevent it from growing too huge */
+  max-height: 60vh; 
   overflow-y: auto;
   white-space: pre-wrap;
   font-family: monospace;
@@ -166,7 +166,7 @@
     }
   }
 
-  // Append lines with very slow typewriter effect
+
   async function appendLineWithTypewriter(line, delay=60){
     return new Promise(resolve => {
       let i = 0;
@@ -207,7 +207,7 @@
 }
 
 
-  // === Prim's MST algorithm with detailed beginner explanation ===
+ 
   async function runPrimsMST(startNode){
     disableButtons(true);
     info.textContent = "";
@@ -283,7 +283,7 @@
     }
   }
 
-  // Kruskal's MST algorithm with detailed beginner explanation
+
   async function runKruskalMST(){
     disableButtons(true);
     info.textContent = "";
