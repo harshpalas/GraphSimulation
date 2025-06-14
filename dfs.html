@@ -157,7 +157,7 @@ function drawGraph() {
   const svg = document.getElementById("graph");
   svg.innerHTML = "";
 
-  // Draw edges
+
   for (let [u, v] of graph.edges) {
     const p1 = graph.positions[u];
     const p2 = graph.positions[v];
