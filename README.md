@@ -94,16 +94,3 @@ Graph Simulation Visualizer is an interactive web application for visualizing an
 
 ---
 
-## 📄 License
-
-MIT License
-
----
-
-## 🙏 Credits
-
-Developed by [Your Name].  
-Icons and illustrations from open web sources.  
-Special thanks to the open-source community for inspiration.
-
----
